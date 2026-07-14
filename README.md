@@ -134,7 +134,7 @@ which represent non-geocoded incidents.
 | Which areas are associated with specific crime types? | Heatmap |
 | Are certain age groups affected by specific crimes? | Stacked Bar Chart |
 | Are weapons associated with particular crimes? | Heatmap |
-| Which police areas have the highest unresolved cases? | Bar Chart |
+
 
 ---
 
@@ -145,8 +145,7 @@ which represent non-geocoded incidents.
 |----------|--------------|
 | Can we predict future crime hotspots? | Geographic Heatmap |
 | What factors contribute most to crime occurrence? | Correlation Heatmap |
-| Can we identify high-risk periods for specific crimes? | Calendar Heatmap |
-| Which combination of factors leads to higher crime rates? | Pairplot / Heatmap |
+
 
 ---
 
