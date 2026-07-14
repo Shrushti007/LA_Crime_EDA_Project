@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LA Crime Data · KPI Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#0d1117;
+    --bg:#101317;
+    --panel:#161b21;
+    --panel-2:#1c2229;
+    --line: rgba(255,255,255,0.07);
+    --text:#eef1f4;
+    --sub:#8b93a1;
+    --accent:#ff5a36;   /* LAPD-badge red-orange */
+    --accent-2:#2fb4c9; /* evidence-tag teal */
+    --accent-3:#f2b705; /* caution yellow */
+    --good:#3ecf8e;
+    --warn:#ff5a36;
+    --grid: rgba(255,255,255,0.06);
+    --radius: 14px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 90% -10%, rgba(255,90,54,0.10), transparent 60%),
+      radial-gradient(1000px 500px at -10% 10%, rgba(47,180,201,0.08), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .tape{
+    background: repeating-linear-gradient(135deg, var(--accent-3), var(--accent-3) 14px, #101317 14px, #101317 28px);
+    height:6px; width:100%;
+  }
+  header{
+    padding: 34px clamp(16px,4vw,56px) 20px;
+    display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px;
+    border-bottom:1px solid var(--line);
+  }
+  .title-block .eyebrow{
+    text-transform:uppercase; letter-spacing:.18em; font-size:11px; color:var(--accent-2); font-weight:700;
+    display:flex; align-items:center; gap:8px;
+  }
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px rgba(255,90,54,0.18);}
+  h1{
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: clamp(28px, 4vw, 42px);
+    margin: 8px 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .subtitle{ color:var(--sub); font-size:14px; max-width:560px; }
+  .meta-strip{ text-align:right; font-size:12px; color:var(--sub); line-height:1.7; }
+  .meta-strip b{ color:var(--text); font-variant-numeric: tabular-nums;}
+
+  main{ padding: 28px clamp(16px,4vw,56px) 60px; max-width:1440px; margin:0 auto; }
+
+  /* KPI ROW */
+  .kpi-row{
+    display:grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap:14px;
+    margin-bottom: 26px;
+  }
+  .kpi{
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border:1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 18px 16px;
+    position:relative;
+    overflow:hidden;
+  }
+  .kpi::before{
+    content:'';
+    position:absolute; left:0; top:0; bottom:0; width:3px;
+    background: var(--accent);
+  }
+  .kpi:nth-child(2)::before{ background:var(--accent-2); }
+  .kpi:nth-child(3)::before{ background:var(--accent-3); }
+  .kpi:nth-child(4)::before{ background:var(--good); }
+  .kpi:nth-child(5)::before{ background:#9b7bff; }
+  .kpi .label{ font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--sub); font-weight:600; }
+  .kpi .value{ font-size: clamp(22px, 2.4vw, 30px); font-weight:800; margin-top:8px; font-variant-numeric: tabular-nums; letter-spacing:-0.02em;}
+  .kpi .foot{ font-size:12px; color:var(--sub); margin-top:6px; }
+  .kpi .foot.up{ color:var(--warn); }
+  .kpi .foot.down{ color:var(--good); }
+
+  /* GRID */
+  .grid{
+    display:grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap:14px;
+    margin-bottom:14px;
+  }
+  .grid.thirds{ grid-template-columns: repeat(3, 1fr); }
+  .grid.halves{ grid-template-columns: 1fr 1fr; }
+
+  .panel{
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border:1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 18px 8px;
+  }
+  .panel h3{
+    margin:0 0 2px; font-size:14px; font-weight:700; letter-spacing:.01em;
+  }
+  .panel .sub{ font-size:11.5px; color:var(--sub); margin-bottom:10px; }
+  .chart-wrap{ position:relative; }
+  .chart-wrap.h220{ height:220px; }
+  .chart-wrap.h260{ height:260px; }
+  .chart-wrap.h300{ height:300px; }
+
+  .badge-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;}
+  .badge{
+    font-size:11px; padding:4px 9px; border-radius:100px; background:var(--panel); border:1px solid var(--line); color:var(--sub);
+  }
+
+  footer{
+    padding: 22px clamp(16px,4vw,56px) 40px; color:var(--sub); font-size:12px; border-top:1px solid var(--line);
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  }
+
+  @media (max-width: 1100px){
+    .kpi-row{ grid-template-columns: repeat(2,1fr); }
+    .grid, .grid.thirds, .grid.halves{ grid-template-columns: 1fr; }
+  }
+
+  .year-bar{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    padding: 14px clamp(16px,4vw,56px);
+    border-bottom:1px solid var(--line);
+    background: rgba(255,255,255,0.015);
+  }
+  .year-bar-label{ font-size:11px; text-transform:uppercase; letter-spacing:.14em; color:var(--sub); font-weight:700; }
+  .year-pills{ display:flex; gap:8px; flex-wrap:wrap; }
+  .year-pill{
+    font-size:12.5px; font-weight:700; padding:6px 14px; border-radius:100px;
+    border:1px solid var(--line); background:var(--panel); color:var(--sub);
+    cursor:pointer; transition: all .15s ease; font-variant-numeric: tabular-nums;
+  }
+  .year-pill:hover{ color:var(--text); border-color: rgba(255,90,54,0.4); }
+  .year-pill.active{
+    background: var(--accent); color:#101317; border-color:var(--accent);
+  }
+</style>
+</head>
+<body>
+<div class="tape"></div>
+
+<header>
+  <div class="title-block">
+    <div class="eyebrow"><span class="dot"></span>City of Los Angeles &middot; Incident Reporting</div>
+    <h1>LA Crime Data — KPI Dashboard</h1>
+    <div class="subtitle">A city-wide view of reported incidents, clearance activity, and victim demographics across LAPD's 21 patrol divisions.</div>
+  </div>
+  <div class="meta-strip">
+    Records analyzed: <b id="metaRecords">—</b><br>
+    Reporting window: <b id="metaRange">—</b><br>
+    Source: LA_Crime_Data_Cleaned.csv
+  </div>
+</header>
+
+<div class="year-bar">
+  <span class="year-bar-label">View year:</span>
+  <div class="year-pills" id="yearPills"></div>
+</div>
+
+<main>
+
+  <!-- KPI ROW -->
+  <section class="kpi-row" id="kpiRow"></section>
+
+  <!-- ROW 1: Trend + Top crimes -->
+  <section class="grid">
+    <div class="panel">
+      <h3>Reported Incidents by Year</h3>
+      <div class="sub">Click a bar (or a pill above) to filter the whole dashboard by year</div>
+      <div class="chart-wrap h260"><canvas id="yearChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Top Crime Types</h3>
+      <div class="sub">Highest-volume offense categories, all years</div>
+      <div class="chart-wrap h260"><canvas id="crimeChart"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ROW 2: hour, weekday, month -->
+  <section class="grid thirds">
+    <div class="panel">
+      <h3>Incidents by Hour of Day</h3>
+      <div class="sub">Noon and evening show clear peaks</div>
+      <div class="chart-wrap h220"><canvas id="hourChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Incidents by Day of Week</h3>
+      <div class="sub">Friday &amp; Saturday run highest</div>
+      <div class="chart-wrap h220"><canvas id="weekdayChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Seasonality by Month</h3>
+      <div class="sub">Aggregated across all reporting years</div>
+      <div class="chart-wrap h220"><canvas id="monthChart"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ROW 3: Area + Status -->
+  <section class="grid">
+    <div class="panel">
+      <h3>Incidents by Patrol Division</h3>
+      <div class="sub">All 21 LAPD geographic areas, ranked</div>
+      <div class="chart-wrap h300"><canvas id="areaChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Case Status Breakdown</h3>
+      <div class="sub">Investigation vs. arrest outcomes</div>
+      <div class="chart-wrap h300"><canvas id="statusChart"></canvas></div>
+      <div class="badge-row" id="statusBadges"></div>
+    </div>
+  </section>
+
+  <!-- ROW 4: Victim demographics -->
+  <section class="grid thirds">
+    <div class="panel">
+      <h3>Victim Sex</h3>
+      <div class="sub">Where recorded</div>
+      <div class="chart-wrap h220"><canvas id="sexChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Victim Age Group</h3>
+      <div class="sub">Avg. victim age: <b id="avgAgeInline">—</b></div>
+      <div class="chart-wrap h220"><canvas id="ageChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Victim Descent (Top 6)</h3>
+      <div class="sub">Self-reported / recorded descent</div>
+      <div class="chart-wrap h220"><canvas id="descentChart"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ROW 5: Weapon -->
+  <section class="grid">
+    <div class="panel">
+      <h3>Weapon Involvement</h3>
+      <div class="sub">Top recorded weapon categories (excluding "no weapon" for scale)</div>
+      <div class="chart-wrap h260"><canvas id="weaponChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>At a Glance</h3>
+      <div class="sub">Weapon presence across all incidents</div>
+      <div class="chart-wrap h260"><canvas id="weaponDonut"></canvas></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <span>Built from LA_Crime_Data_Cleaned.csv &middot; figures reflect reported incidents, not convictions</span>
+  <span>Dashboard generated for exploratory analysis</span>
+</footer>
+
+<script>
+const DATA = {"years": ["2020", "2021", "2022", "2023", "2024", "2025"], "by_year": {"2020": {"total_crimes": 199847, "arrest_rate": 10.68, "status_breakdown": {"Invest Cont": 151930, "Adult Other": 26258, "Adult Arrest": 20593, "Juv Arrest": 756, "Juv Other": 310}, "avg_victim_age": 39.7, "top_crime_type": "Vehicle - Stolen", "top_crimes": {"Vehicle - Stolen": 20772, "Battery - Simple Assault": 16331, "Vandalism - Felony ($400 & Over, All Church Vandalisms)": 12927, "Burglary": 12837, "Burglary From Vehicle": 12714, "Assault With Deadly Weapon, Aggravated Assault": 11525, "Intimate Partner - Simple Assault": 10863, "Theft Plain - Petty ($950 & Under)": 10857, "Theft From Motor Vehicle - Petty ($950 & Under)": 9737, "Theft Of Identity": 9040, "Vandalism - Misdeameanor ($399 Or Under)": 6982, "Robbery": 6896}, "top_area": "77th Street", "area_breakdown": {"77th Street": 13353, "Central": 11604, "Pacific": 11576, "Southwest": 11180, "Southeast": 10849, "Hollywood": 10174, "N Hollywood": 10169, "Newton": 9995, "Olympic": 9640, "West LA": 9311, "Wilshire": 9292, "Rampart": 9025, "Harbor": 8875, "Van Nuys": 8764, "Mission": 8482, "Northeast": 8452, "Topanga": 8113, "West Valley": 8095, "Devonshire": 7984, "Hollenbeck": 7807, "Foothill": 7107}, "monthly_trend": {"1": 18576, "2": 17284, "3": 16188, "4": 15706, "5": 17230, "6": 17060, "7": 17158, "8": 16902, "9": 15658, "10": 16510, "11": 15596, "12": 15979}, "weekday_trend": {"Monday": 28306, "Tuesday": 27633, "Wednesday": 29068, "Thursday": 28281, "Friday": 29942, "Saturday": 28955, "Sunday": 27662}, "hourly_trend": {"0": 8111, "1": 5819, "2": 4968, "3": 4316, "4": 3607, "5": 3368, "6": 3969, "7": 4743, "8": 7093, "9": 7112, "10": 8343, "11": 8400, "12": 13753, "13": 9062, "14": 9899, "15": 10772, "16": 10828, "17": 12114, "18": 12298, "19": 11188, "20": 11518, "21": 10331, "22": 9829, "23": 8406}, "sex_breakdown": {"Male": 84992, "Female": 72735, "Unknown": 42120}, "descent_breakdown": {"Hispanic/Latin": 61606, "Unknown": 43958, "White": 42638, "Black": 28785, "Other": 16201, "Other Asian": 4447, "Korean": 822, "Filipino": 482, "Chinese": 393, "Japanese": 161}, "age_group_breakdown": {"31-45": 51400, "19-30": 43236, "46-60": 33293, "60+": 16882, "0-18": 6713}, "weapon_breakdown": {"No Weapon Involved": 126868, "STRONG-ARM (HANDS, FIST, FEET OR BODILY FORCE)": 39530, "UNKNOWN WEAPON/OTHER WEAPON": 7899, "VERBAL THREAT": 5221, "HAND GUN": 3957, "SEMI-AUTOMATIC PISTOL": 1567, "KNIFE WITH BLADE 6INCHES OR LESS": 1528, "UNKNOWN FIREARM": 1406, "OTHER KNIFE": 1251, "VEHICLE": 723}, "pct_no_weapon": 63.48}, "2021": {"total_crimes": 209875, "arrest_rate": 9.66, "status_breakdown": {"Invest Cont": 163686, "Adult Other": 25566, "Adult Arrest": 19641, "Juv Arrest": 630, "Juv Other": 352}, "avg_victim_age": 39.6, "top_crime_type": "Vehicle - Stolen", "top_crimes": {"Vehicle - Stolen": 23685, "Battery - Simple Assault": 16199, "Vandalism - Felony ($400 & Over, All Church Vandalisms)": 13681, "Burglary From Vehicle": 13479, "Assault With Deadly Weapon, Aggravated Assault": 12739, "Burglary": 12214, "Theft Of Identity": 11373, "Theft Plain - Petty ($950 & Under)": 11195, "Intimate Partner - Simple Assault": 10797, "Theft From Motor Vehicle - Petty ($950 & Under)": 8257, "Theft From Motor Vehicle - Grand ($950.01 And Over)": 7521, "Robbery": 7353}, "top_area": "Central", "area_breakdown": {"Central": 13171, "77th Street": 13102, "Pacific": 12935, "Hollywood": 12109, "Southwest": 11419, "N Hollywood": 10932, "Olympic": 10835, "Southeast": 10434, "Newton": 9926, "West LA": 9900, "Wilshire": 9752, "Rampart": 9465, "Northeast": 9351, "Harbor": 8875, "Van Nuys": 8700, "Topanga": 8604, "West Valley": 8543, "Devonshire": 8507, "Mission": 8238, "Hollenbeck": 8029, "Foothill": 7048}, "monthly_trend": {"1": 16636, "2": 15440, "3": 16354, "4": 16091, "5": 17020, "6": 17182, "7": 18690, "8": 18398, "9": 18386, "10": 19342, "11": 18374, "12": 17962}, "weekday_trend": {"Monday": 30347, "Tuesday": 28564, "Wednesday": 29449, "Thursday": 29428, "Friday": 32385, "Saturday": 30308, "Sunday": 29394}, "hourly_trend": {"0": 8248, "1": 6217, "2": 5415, "3": 4721, "4": 3941, "5": 3758, "6": 4347, "7": 5276, "8": 7666, "9": 7475, "10": 9164, "11": 9123, "12": 14278, "13": 9657, "14": 10148, "15": 10804, "16": 11091, "17": 12138, "18": 12418, "19": 11704, "20": 11783, "21": 10991, "22": 10471, "23": 9041}, "sex_breakdown": {"Male": 88133, "Female": 77094, "Unknown": 44648}, "descent_breakdown": {"Hispanic/Latin": 63676, "Unknown": 46498, "White": 44523, "Black": 30173, "Other": 16646, "Other Asian": 4323, "Korean": 1283, "Filipino": 969, "Chinese": 769, "Japanese": 307}, "age_group_breakdown": {"31-45": 55222, "19-30": 45947, "46-60": 33809, "60+": 17862, "0-18": 6494}, "weapon_breakdown": {"No Weapon Involved": 135935, "STRONG-ARM (HANDS, FIST, FEET OR BODILY FORCE)": 39495, "UNKNOWN WEAPON/OTHER WEAPON": 7310, "VERBAL THREAT": 5278, "HAND GUN": 4940, "SEMI-AUTOMATIC PISTOL": 1722, "UNKNOWN FIREARM": 1648, "KNIFE WITH BLADE 6INCHES OR LESS": 1613, "OTHER KNIFE": 1284, "MACE/PEPPER SPRAY": 853}, "pct_no_weapon": 64.77}, "2022": {"total_crimes": 235258, "arrest_rate": 8.73, "status_breakdown": {"Invest Cont": 189000, "Adult Other": 25291, "Adult Arrest": 19834, "Juv Arrest": 707, "Juv Other": 424, "UNK": 2}, "avg_victim_age": 39.4, "top_crime_type": "Vehicle - Stolen", "top_crimes": {"Vehicle - Stolen": 24746, "Theft Of Identity": 22186, "Battery - Simple Assault": 18059, "Burglary From Vehicle": 14232, "Burglary": 14071, "Vandalism - Felony ($400 & Over, All Church Vandalisms)": 13361, "Assault With Deadly Weapon, Aggravated Assault": 12870, "Theft Plain - Petty ($950 & Under)": 11384, "Intimate Partner - Simple Assault": 11179, "Theft From Motor Vehicle - Grand ($950.01 And Over)": 10080, "Theft-Grand ($950.01 & Over)Excpt,Guns,Fowl,Livestk,Prod": 8131, "Robbery": 7953}, "top_area": "Central", "area_breakdown": {"Central": 17715, "77th Street": 14573, "Southwest": 13416, "Pacific": 13048, "Hollywood": 12546, "Olympic": 12068, "Newton": 11933, "Southeast": 11748, "Rampart": 11204, "N Hollywood": 11199, "Wilshire": 11176, "West LA": 10515, "West Valley": 10288, "Northeast": 10184, "Van Nuys": 9716, "Devonshire": 9597, "Topanga": 9462, "Mission": 9281, "Harbor": 9200, "Hollenbeck": 8522, "Foothill": 7867}, "monthly_trend": {"1": 18567, "2": 17750, "3": 19745, "4": 19837, "5": 20467, "6": 20273, "7": 20009, "8": 20144, "9": 19341, "10": 20335, "11": 18754, "12": 20036}, "weekday_trend": {"Monday": 32520, "Tuesday": 32358, "Wednesday": 33159, "Thursday": 33245, "Friday": 36266, "Saturday": 35348, "Sunday": 32362}, "hourly_trend": {"0": 10752, "1": 7568, "2": 6130, "3": 5396, "4": 4637, "5": 4222, "6": 6096, "7": 6594, "8": 9113, "9": 8767, "10": 10132, "11": 10490, "12": 17153, "13": 10334, "14": 11035, "15": 11919, "16": 11690, "17": 12912, "18": 13402, "19": 12273, "20": 12375, "21": 11325, "22": 11455, "23": 9488}, "sex_breakdown": {"Male": 95768, "Female": 89631, "Unknown": 49859}, "descent_breakdown": {"Hispanic/Latin": 73111, "Unknown": 52130, "White": 46694, "Black": 34634, "Other": 18422, "Other Asian": 5288, "Korean": 1316, "Filipino": 1174, "Chinese": 1158, "Japanese": 390}, "age_group_breakdown": {"31-45": 63530, "19-30": 51345, "46-60": 36330, "60+": 19996, "0-18": 7973}, "weapon_breakdown": {"No Weapon Involved": 157448, "STRONG-ARM (HANDS, FIST, FEET OR BODILY FORCE)": 41957, "UNKNOWN WEAPON/OTHER WEAPON": 7836, "VERBAL THREAT": 5828, "HAND GUN": 4974, "SEMI-AUTOMATIC PISTOL": 1877, "UNKNOWN FIREARM": 1579, "KNIFE WITH BLADE 6INCHES OR LESS": 1535, "OTHER KNIFE": 1497, "MACE/PEPPER SPRAY": 972}, "pct_no_weapon": 66.93}, "2023": {"total_crimes": 232350, "arrest_rate": 8.76, "status_breakdown": {"Invest Cont": 186529, "Adult Other": 24913, "Adult Arrest": 19494, "Juv Arrest": 857, "Juv Other": 554, "UNK": 3}, "avg_victim_age": 39.6, "top_crime_type": "Vehicle - Stolen", "top_crimes": {"Vehicle - Stolen": 24472, "Battery - Simple Assault": 18832, "Burglary": 14289, "Theft Of Identity": 13617, "Burglary From Vehicle": 13565, "Vandalism - Felony ($400 & Over, All Church Vandalisms)": 13172, "Assault With Deadly Weapon, Aggravated Assault": 12694, "Theft Plain - Petty ($950 & Under)": 11463, "Intimate Partner - Simple Assault": 10878, "Shoplifting - Petty Theft ($950 & Under)": 10014, "Theft From Motor Vehicle - Grand ($950.01 And Over)": 8932, "Theft-Grand ($950.01 & Over)Excpt,Guns,Fowl,Livestk,Prod": 8740}, "top_area": "Central", "area_breakdown": {"Central": 16967, "77th Street": 13954, "Pacific": 13792, "Southwest": 13112, "Newton": 11933, "Olympic": 11756, "Wilshire": 11713, "N Hollywood": 11558, "Rampart": 11530, "Hollywood": 11448, "Southeast": 11294, "West LA": 10587, "Van Nuys": 9942, "West Valley": 9937, "Devonshire": 9776, "Northeast": 9716, "Topanga": 9648, "Harbor": 9135, "Mission": 8981, "Hollenbeck": 8411, "Foothill": 7160}, "monthly_trend": {"1": 19972, "2": 18489, "3": 19214, "4": 18937, "5": 18910, "6": 18743, "7": 19934, "8": 20082, "9": 19321, "10": 20123, "11": 19074, "12": 19551}, "weekday_trend": {"Monday": 32545, "Tuesday": 31874, "Wednesday": 33026, "Thursday": 32595, "Friday": 35501, "Saturday": 33862, "Sunday": 32947}, "hourly_trend": {"0": 9170, "1": 6785, "2": 5836, "3": 5098, "4": 4316, "5": 3909, "6": 5585, "7": 6005, "8": 8613, "9": 8494, "10": 10067, "11": 10160, "12": 14800, "13": 10655, "14": 11755, "15": 12265, "16": 12454, "17": 13811, "18": 13943, "19": 12865, "20": 13096, "21": 11739, "22": 11000, "23": 9929}, "sex_breakdown": {"Male": 91783, "Female": 82989, "Unknown": 57578}, "descent_breakdown": {"Hispanic/Latin": 69402, "Unknown": 59531, "White": 44619, "Black": 30505, "Other": 18189, "Other Asian": 5189, "Korean": 1375, "Chinese": 1157, "Filipino": 1129, "Japanese": 378}, "age_group_breakdown": {"31-45": 59159, "19-30": 47880, "46-60": 34017, "60+": 19905, "0-18": 7750}, "weapon_breakdown": {"No Weapon Involved": 153647, "STRONG-ARM (HANDS, FIST, FEET OR BODILY FORCE)": 41852, "UNKNOWN WEAPON/OTHER WEAPON": 9543, "VERBAL THREAT": 5896, "HAND GUN": 4842, "KNIFE WITH BLADE 6INCHES OR LESS": 1723, "SEMI-AUTOMATIC PISTOL": 1616, "UNKNOWN FIREARM": 1481, "OTHER KNIFE": 1426, "MACE/PEPPER SPRAY": 1003}, "pct_no_weapon": 66.13}, "2024": {"total_crimes": 127574, "arrest_rate": 5.96, "status_breakdown": {"Invest Cont": 112513, "Adult Arrest": 7311, "Adult Other": 7226, "Juv Arrest": 298, "Juv Other": 224, "UNK": 2}, "avg_victim_age": 39.0, "top_crime_type": "Vehicle - Stolen", "top_crimes": {"Vehicle - Stolen": 21512, "Burglary From Vehicle": 9525, "Shoplifting - Petty Theft ($950 & Under)": 9056, "Theft Plain - Petty ($950 & Under)": 8819, "Vandalism - Felony ($400 & Over, All Church Vandalisms)": 7947, "Theft From Motor Vehicle - Petty ($950 & Under)": 7609, "Theft Of Identity": 6322, "Theft-Grand ($950.01 & Over)Excpt,Guns,Fowl,Livestk,Prod": 6005, "Theft From Motor Vehicle - Grand ($950.01 And Over)": 5622, "Trespassing": 5577, "Battery - Simple Assault": 5400, "Burglary": 4460}, "top_area": "Central", "area_breakdown": {"Central": 10215, "Southwest": 8308, "Pacific": 8162, "N Hollywood": 7247, "77th Street": 6775, "Wilshire": 6304, "Hollywood": 6153, "Devonshire": 5881, "Olympic": 5771, "Van Nuys": 5759, "Southeast": 5604, "Rampart": 5601, "Topanga": 5539, "West LA": 5412, "Newton": 5386, "Mission": 5360, "Harbor": 5307, "West Valley": 5283, "Northeast": 5247, "Hollenbeck": 4313, "Foothill": 3947}, "monthly_trend": {"1": 18927, "2": 17395, "3": 16294, "4": 12946, "5": 9387, "6": 8126, "7": 8171, "8": 8325, "9": 8310, "10": 7818, "11": 7179, "12": 4696}, "weekday_trend": {"Monday": 17817, "Tuesday": 17695, "Wednesday": 17987, "Thursday": 18245, "Friday": 19569, "Saturday": 18983, "Sunday": 17278}, "hourly_trend": {"0": 4188, "1": 3370, "2": 2864, "3": 2659, "4": 2255, "5": 2031, "6": 3188, "7": 3646, "8": 4760, "9": 4672, "10": 5313, "11": 5490, "12": 7824, "13": 5863, "14": 6460, "15": 7051, "16": 6906, "17": 7834, "18": 7894, "19": 7566, "20": 7579, "21": 6402, "22": 6346, "23": 5413}, "sex_breakdown": {"Unknown": 48297, "Male": 43167, "Female": 36110}, "descent_breakdown": {"Unknown": 49192, "Hispanic/Latin": 28575, "White": 22959, "Black": 11714, "Other": 8543, "Other Asian": 2091, "Korean": 1195, "Chinese": 1154, "Filipino": 1084, "Japanese": 350}, "age_group_breakdown": {"31-45": 27441, "19-30": 23644, "46-60": 14891, "60+": 8156, "0-18": 2710}, "weapon_breakdown": {"No Weapon Involved": 103789, "STRONG-ARM (HANDS, FIST, FEET OR BODILY FORCE)": 11906, "UNKNOWN WEAPON/OTHER WEAPON": 3799, "VERBAL THREAT": 1619, "HAND GUN": 1470, "SEMI-AUTOMATIC PISTOL": 485, "UNKNOWN FIREARM": 467, "KNIFE WITH BLADE 6INCHES OR LESS": 438, "OTHER KNIFE": 421, "MACE/PEPPER SPRAY": 246}, "pct_no_weapon": 81.36}, "2025": {"total_crimes": 294, "arrest_rate": 1.7, "status_breakdown": {"Invest Cont": 288, "Adult Arrest": 4, "Adult Other": 1, "Juv Arrest": 1}, "avg_victim_age": 23.2, "top_crime_type": "Vehicle - Stolen", "top_crimes": {"Vehicle - Stolen": 60, "Theft-Grand ($950.01 & Over)Excpt,Guns,Fowl,Livestk,Prod": 58, "Vehicle, Stolen - Other (Motorized Scooters, Bikes, Etc)": 38, "Battery - Simple Assault": 26, "Criminal Threats - No Weapon Displayed": 11, "Other Miscellaneous Crime": 10, "Robbery": 9, "Assault With Deadly Weapon, Aggravated Assault": 9, "Burglary": 8, "Vandalism - Misdeameanor ($399 Or Under)": 7, "Vandalism - Felony ($400 & Over, All Church Vandalisms)": 6, "Theft From Motor Vehicle - Petty ($950 & Under)": 5}, "top_area": "Southwest", "area_breakdown": {"Southwest": 76, "Harbor": 70, "Mission": 23, "Devonshire": 21, "Hollenbeck": 13, "Northeast": 12, "Southeast": 12, "West Valley": 12, "Topanga": 10, "Newton": 8, "Pacific": 7, "Foothill": 7, "77th Street": 6, "West LA": 6, "Wilshire": 3, "Van Nuys": 2, "Central": 2, "N Hollywood": 2, "Rampart": 1, "Olympic": 1}, "monthly_trend": {"1": 98, "2": 132, "3": 64}, "weekday_trend": {"Monday": 33, "Tuesday": 38, "Wednesday": 67, "Thursday": 67, "Friday": 52, "Saturday": 18, "Sunday": 19}, "hourly_trend": {"0": 12, "1": 5, "2": 4, "3": 3, "4": 2, "5": 4, "6": 2, "7": 6, "8": 12, "9": 14, "10": 10, "11": 7, "12": 28, "13": 22, "14": 27, "15": 28, "16": 18, "17": 18, "18": 11, "19": 20, "20": 7, "21": 12, "22": 16, "23": 6}, "sex_breakdown": {"Unknown": 181, "Male": 73, "Female": 40}, "descent_breakdown": {"Unknown": 186, "Hispanic/Latin": 67, "White": 18, "Black": 12, "Other": 9, "Other Asian": 2}, "age_group_breakdown": {"0-18": 65, "31-45": 14, "19-30": 9, "46-60": 8, "60+": 3}, "weapon_breakdown": {"No Weapon Involved": 231, "STRONG-ARM (HANDS, FIST, FEET OR BODILY FORCE)": 37, "UNKNOWN WEAPON/OTHER WEAPON": 7, "VERBAL THREAT": 6, "KNIFE WITH BLADE 6INCHES OR LESS": 4, "HAND GUN": 3, "SHOTGUN": 1, "BOTTLE": 1, "RIFLE": 1, "OTHER CUTTING INSTRUMENT": 1}, "pct_no_weapon": 78.57}, "All": {"total_crimes": 1005198, "arrest_rate": 8.97, "status_breakdown": {"Invest Cont": 803946, "Adult Other": 109255, "Adult Arrest": 86877, "Juv Arrest": 3249, "Juv Other": 1864, "UNK": 7}, "avg_victim_age": 39.5, "top_crime_type": "Vehicle - Stolen", "top_crimes": {"Vehicle - Stolen": 115247, "Battery - Simple Assault": 74847, "Burglary From Vehicle": 63518, "Theft Of Identity": 62539, "Vandalism - Felony ($400 & Over, All Church Vandalisms)": 61094, "Burglary": 57879, "Theft Plain - Petty ($950 & Under)": 53723, "Assault With Deadly Weapon, Aggravated Assault": 53532, "Intimate Partner - Simple Assault": 46712, "Theft From Motor Vehicle - Petty ($950 & Under)": 41316, "Theft From Motor Vehicle - Grand ($950.01 And Over)": 36942, "Theft-Grand ($950.01 & Over)Excpt,Guns,Fowl,Livestk,Prod": 35208}, "top_area": "Central", "area_breakdown": {"Central": 69674, "77th Street": 61763, "Pacific": 59520, "Southwest": 57511, "Hollywood": 52430, "N Hollywood": 51107, "Olympic": 50071, "Southeast": 49941, "Newton": 49181, "Wilshire": 48240, "Rampart": 46826, "West LA": 45731, "Northeast": 42962, "Van Nuys": 42883, "West Valley": 42158, "Devonshire": 41766, "Harbor": 41462, "Topanga": 41376, "Mission": 40365, "Hollenbeck": 37095, "Foothill": 33136}, "monthly_trend": {"1": 92776, "2": 86490, "3": 87859, "4": 83517, "5": 83014, "6": 81384, "7": 83962, "8": 83851, "9": 81016, "10": 84128, "11": 78977, "12": 78224}, "weekday_trend": {"Monday": 141568, "Tuesday": 138162, "Wednesday": 142756, "Thursday": 141861, "Friday": 153715, "Saturday": 147474, "Sunday": 139662}, "hourly_trend": {"0": 40481, "1": 29764, "2": 25217, "3": 22193, "4": 18758, "5": 17292, "6": 23187, "7": 26270, "8": 37257, "9": 36534, "10": 43029, "11": 43670, "12": 67836, "13": 45593, "14": 49324, "15": 52839, "16": 52987, "17": 58827, "18": 59966, "19": 55616, "20": 56358, "21": 50800, "22": 49117, "23": 42283}, "sex_breakdown": {"Male": 403916, "Female": 358599, "Unknown": 242683}, "descent_breakdown": {"Hispanic/Latin": 296437, "Unknown": 251495, "White": 201451, "Black": 135823, "Other": 78010, "Other Asian": 21340, "Korean": 5991, "Filipino": 4838, "Chinese": 4631, "Japanese": 1586}, "age_group_breakdown": {"31-45": 256766, "19-30": 212061, "46-60": 152348, "60+": 82804, "0-18": 31705}, "weapon_breakdown": {"No Weapon Involved": 677918, "STRONG-ARM (HANDS, FIST, FEET OR BODILY FORCE)": 174777, "UNKNOWN WEAPON/OTHER WEAPON": 36394, "VERBAL THREAT": 23848, "HAND GUN": 20186, "SEMI-AUTOMATIC PISTOL": 7267, "KNIFE WITH BLADE 6INCHES OR LESS": 6841, "UNKNOWN FIREARM": 6581, "OTHER KNIFE": 5880, "MACE/PEPPER SPRAY": 3730}, "pct_no_weapon": 67.44}}, "date_range": [2020, 2025]};
+const YEARS = DATA.years; // e.g. ["2020",...,"2025"]
+
+Chart.defaults.color = '#8b93a1';
+Chart.defaults.font.family = "Inter, -apple-system, sans-serif";
+Chart.defaults.font.size = 11.5;
+
+const COLORS = {
+  accent:'#ff5a36', accent2:'#2fb4c9', accent3:'#f2b705', good:'#3ecf8e', purple:'#9b7bff',
+  grid:'rgba(255,255,255,0.06)'
+};
+const PALETTE = ['#ff5a36','#2fb4c9','#f2b705','#3ecf8e','#9b7bff','#ff8a5c','#5cc9dc','#f7d15c','#6fe3ae','#bda2ff','#e0836a','#8fd7e0'];
+
+function fmt(n){ return (n||0).toLocaleString('en-US'); }
+function fmtCompact(n){ return Intl.NumberFormat('en-US',{notation:'compact', maximumFractionDigits:1}).format(n||0); }
+
+// ---- Year pills ----
+const pillBar = document.getElementById('yearPills');
+const allPills = ['All', ...YEARS];
+pillBar.innerHTML = allPills.map(y => `<button class="year-pill${y==='All'?' active':''}" data-year="${y}">${y==='All' ? 'All Years' : y}</button>`).join('');
+
+let currentYear = 'All';
+
+pillBar.addEventListener('click', e => {
+  const btn = e.target.closest('.year-pill');
+  if(!btn) return;
+  currentYear = btn.dataset.year;
+  [...pillBar.children].forEach(c => c.classList.toggle('active', c === btn));
+  render(currentYear);
+  updateYearChartHighlight(currentYear);
+});
+
+// ---- Chart instances (created once, updated on year change) ----
+let charts = {};
+
+function makeCharts(d){
+  charts.year = new Chart(document.getElementById('yearChart'), {
+    type:'bar',
+    data:{
+      labels: YEARS,
+      datasets:[{
+        data: YEARS.map(y => DATA.by_year[y].total_crimes),
+        backgroundColor: YEARS.map(() => 'rgba(255,90,54,0.35)'),
+        borderRadius:5, maxBarThickness:44
+      }]
+    },
+    options:{
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmt(c.parsed.y)+' incidents'}}},
+      scales:{ y:{ grid:{color:COLORS.grid}, ticks:{callback:v=>fmtCompact(v)} }, x:{ grid:{display:false} } },
+      onClick:(evt, els) => {
+        if(!els.length) return;
+        const y = YEARS[els[0].index];
+        const btn = pillBar.querySelector(`[data-year="${y}"]`);
+        if(btn) btn.click();
+      }
+    }
+  });
+
+  charts.crime = new Chart(document.getElementById('crimeChart'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor: COLORS.accent2, borderRadius:4, maxBarThickness:16 }] },
+    options:{
+      indexAxis:'y',
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmt(c.parsed.x)+' incidents'}}},
+      scales:{ x:{ grid:{color:COLORS.grid}, ticks:{callback:v=>fmtCompact(v)} }, y:{ grid:{display:false} } }
+    }
+  });
+
+  charts.hour = new Chart(document.getElementById('hourChart'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor: COLORS.accent3, borderRadius:3, maxBarThickness:14 }] },
+    options:{
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmt(c.parsed.y)+' incidents'}}},
+      scales:{ y:{ grid:{color:COLORS.grid}, ticks:{callback:v=>fmtCompact(v)} }, x:{ grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:8} } }
+    }
+  });
+
+  charts.weekday = new Chart(document.getElementById('weekdayChart'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor: COLORS.good, borderRadius:5, maxBarThickness:34 }] },
+    options:{
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmt(c.parsed.y)+' incidents'}}},
+      scales:{ y:{ grid:{color:COLORS.grid}, ticks:{callback:v=>fmtCompact(v)} }, x:{ grid:{display:false} } }
+    }
+  });
+
+  charts.month = new Chart(document.getElementById('monthChart'), {
+    type:'line',
+    data:{ labels:[], datasets:[{ data:[], borderColor: COLORS.purple, backgroundColor:'rgba(155,123,255,0.15)', fill:true, tension:.4, pointRadius:3, borderWidth:2.5 }] },
+    options:{
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmt(c.parsed.y)+' incidents'}}},
+      scales:{ y:{ grid:{color:COLORS.grid}, ticks:{callback:v=>fmtCompact(v)} }, x:{ grid:{display:false} } }
+    }
+  });
+
+  charts.area = new Chart(document.getElementById('areaChart'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor: COLORS.accent, borderRadius:4, maxBarThickness:18 }] },
+    options:{
+      indexAxis:'y',
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmt(c.parsed.x)+' incidents'}}},
+      scales:{ x:{ grid:{color:COLORS.grid}, ticks:{callback:v=>fmtCompact(v)} }, y:{ grid:{display:false}, ticks:{font:{size:10.5}} } }
+    }
+  });
+
+  charts.status = new Chart(document.getElementById('statusChart'), {
+    type:'doughnut',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor: PALETTE, borderColor:'#161b21', borderWidth:2 }]},
+    options:{ cutout:'62%', plugins:{ legend:{ position:'bottom', labels:{boxWidth:10, padding:12} }, tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)+' ('+(100*c.parsed/charts.status._total).toFixed(1)+'%)'}} } }
+  });
+
+  charts.sex = new Chart(document.getElementById('sexChart'), {
+    type:'doughnut',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor:[COLORS.accent2, COLORS.accent, '#3a4048'], borderColor:'#161b21', borderWidth:2 }]},
+    options:{ cutout:'58%', plugins:{ legend:{ position:'bottom', labels:{boxWidth:10} } } }
+  });
+
+  charts.age = new Chart(document.getElementById('ageChart'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor: COLORS.accent3, borderRadius:5, maxBarThickness:34 }]},
+    options:{ plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmt(c.parsed.y)+' victims'}}}, scales:{ y:{grid:{color:COLORS.grid}, ticks:{callback:v=>fmtCompact(v)}}, x:{grid:{display:false}} } }
+  });
+
+  charts.descent = new Chart(document.getElementById('descentChart'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor: COLORS.good, borderRadius:4, maxBarThickness:20 }]},
+    options:{
+      indexAxis:'y',
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmt(c.parsed.x)+' victims'}}},
+      scales:{ x:{ grid:{color:COLORS.grid}, ticks:{callback:v=>fmtCompact(v)} }, y:{ grid:{display:false} } }
+    }
+  });
+
+  charts.weapon = new Chart(document.getElementById('weaponChart'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor: COLORS.purple, borderRadius:4, maxBarThickness:16 }]},
+    options:{
+      indexAxis:'y',
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmt(c.parsed.x)+' incidents'}}},
+      scales:{ x:{ grid:{color:COLORS.grid}, ticks:{callback:v=>fmtCompact(v)} }, y:{ grid:{display:false}, ticks:{font:{size:10.5}} } }
+    }
+  });
+
+  charts.weaponDonut = new Chart(document.getElementById('weaponDonut'), {
+    type:'doughnut',
+    data:{ labels:['No Weapon Involved','Weapon Involved'], datasets:[{ data:[0,0], backgroundColor:['#3a4048', COLORS.accent], borderColor:'#161b21', borderWidth:2 }]},
+    options:{ cutout:'64%', plugins:{ legend:{ position:'bottom', labels:{boxWidth:10} }, tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)+' ('+(100*c.parsed/charts.weaponDonut._total).toFixed(1)+'%)'}} } }
+  });
+}
+
+const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const weekdayOrder = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+
+function updateYearChartHighlight(year){
+  charts.year.data.datasets[0].backgroundColor = YEARS.map(y =>
+    (year !== 'All' && y === year) ? COLORS.accent : 'rgba(255,90,54,0.35)'
+  );
+  charts.year.update();
+}
+
+function render(year){
+  const d = DATA.by_year[year];
+
+  // Header meta + KPIs
+  const label = year === 'All' ? (DATA.date_range[0] + '–' + DATA.date_range[1]) : year;
+  document.getElementById('metaRecords').textContent = fmt(d.total_crimes);
+  document.getElementById('metaRange').textContent = label;
+  document.getElementById('avgAgeInline').textContent = d.avg_victim_age + ' yrs';
+
+  const arrestCount = (d.status_breakdown['Adult Arrest']||0) + (d.status_breakdown['Juv Arrest']||0);
+  const topCrimeShare = d.total_crimes ? (100*(d.top_crimes[d.top_crime_type]||0)/d.total_crimes).toFixed(1) : '0.0';
+  const kpis = [
+    { label: year==='All' ? 'Total Reported Incidents' : `Incidents in ${year}`, value: fmtCompact(d.total_crimes), foot: label+' · '+fmt(d.total_crimes)+' records' },
+    { label:'Arrest Rate', value: d.arrest_rate + '%', foot: fmt(arrestCount) + ' arrests logged' },
+    { label:'Most Reported Crime', value: d.top_crime_type || '—', foot: topCrimeShare + '% of incidents' },
+    { label:'Highest-Volume Division', value: d.top_area || '—', foot: fmt(d.area_breakdown[d.top_area]) + ' incidents' },
+    { label:'Avg. Victim Age', value: d.avg_victim_age + ' yrs', foot: d.pct_no_weapon + '% incidents unarmed' },
+  ];
+  document.getElementById('kpiRow').innerHTML = kpis.map(k => `
+    <div class="kpi">
+      <div class="label">${k.label}</div>
+      <div class="value">${k.value}</div>
+      <div class="foot">${k.foot}</div>
+    </div>`).join('');
+
+  // Top crimes
+  const crimeEntries = Object.entries(d.top_crimes);
+  charts.crime.data.labels = crimeEntries.map(e => e[0].length>28 ? e[0].slice(0,26)+'…' : e[0]);
+  charts.crime.data.datasets[0].data = crimeEntries.map(e => e[1]);
+  charts.crime.update();
+
+  // Hour
+  const hourEntries = Object.entries(d.hourly_trend).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
+  charts.hour.data.labels = hourEntries.map(e => e[0]+':00');
+  charts.hour.data.datasets[0].data = hourEntries.map(e => e[1]);
+  charts.hour.update();
+
+  // Weekday
+  charts.weekday.data.labels = weekdayOrder.map(w => w.slice(0,3));
+  charts.weekday.data.datasets[0].data = weekdayOrder.map(w => d.weekday_trend[w]||0);
+  charts.weekday.update();
+
+  // Month
+  const monthEntries = Object.entries(d.monthly_trend).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
+  charts.month.data.labels = monthEntries.map(e => monthNames[parseInt(e[0])-1]);
+  charts.month.data.datasets[0].data = monthEntries.map(e => e[1]);
+  charts.month.update();
+
+  // Area
+  const areaEntries = Object.entries(d.area_breakdown).sort((a,b)=>b[1]-a[1]);
+  charts.area.data.labels = areaEntries.map(e => e[0]);
+  charts.area.data.datasets[0].data = areaEntries.map(e => e[1]);
+  charts.area.update();
+
+  // Status
+  const statusEntries = Object.entries(d.status_breakdown);
+  charts.status._total = d.total_crimes;
+  charts.status.data.labels = statusEntries.map(e => e[0]);
+  charts.status.data.datasets[0].data = statusEntries.map(e => e[1]);
+  charts.status.update();
+
+  // Sex
+  const sexEntries = Object.entries(d.sex_breakdown);
+  charts.sex.data.labels = sexEntries.map(e => e[0]);
+  charts.sex.data.datasets[0].data = sexEntries.map(e => e[1]);
+  charts.sex.update();
+
+  // Age group
+  const ageOrder = ['0-18','19-30','31-45','46-60','60+'];
+  const ageKeys = ageOrder.filter(k => k in d.age_group_breakdown);
+  charts.age.data.labels = ageKeys;
+  charts.age.data.datasets[0].data = ageKeys.map(k => d.age_group_breakdown[k]);
+  charts.age.update();
+
+  // Descent
+  const descentEntries = Object.entries(d.descent_breakdown).slice(0,6);
+  charts.descent.data.labels = descentEntries.map(e => e[0]);
+  charts.descent.data.datasets[0].data = descentEntries.map(e => e[1]);
+  charts.descent.update();
+
+  // Weapon
+  const weaponEntries = Object.entries(d.weapon_breakdown).filter(e => e[0] !== 'No Weapon Involved');
+  charts.weapon.data.labels = weaponEntries.map(e => e[0].length>26 ? e[0].slice(0,24)+'…' : e[0]);
+  charts.weapon.data.datasets[0].data = weaponEntries.map(e => e[1]);
+  charts.weapon.update();
+
+  // Weapon donut
+  const noWeapon = d.weapon_breakdown['No Weapon Involved'] || 0;
+  const weaponPresent = d.total_crimes - noWeapon;
+  charts.weaponDonut._total = d.total_crimes;
+  charts.weaponDonut.data.datasets[0].data = [noWeapon, weaponPresent];
+  charts.weaponDonut.update();
+}
+
+makeCharts(DATA.by_year['All']);
+render('All');
+</script>
+</body>
+</html>
