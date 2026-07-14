@@ -37,10 +37,18 @@ The objectives of this project are to:
 | Attribute | Value |
 |-----------|-------|
 | Dataset Name | Crime Data from 2020 to Present |
-| Source | Los Angeles Police Department (LAPD) |
+| Source | Kaggle (Original data provided by Los Angeles Police Department - LAPD Open Data Portal) |
 | Records | 1,005,198 |
 | Features | 28 |
 | Dataset Type | Structured Tabular Data |
+
+## 🔗 Dataset Source
+
+The dataset used in this project was downloaded from **Kaggle** and originates from the **Los Angeles Police Department (LAPD) Open Data Portal**.
+
+Dataset: **Crime Data from 2020 to Present**
+
+This publicly available dataset contains detailed records of reported crime incidents across Los Angeles, including information related to crime type, victim demographics, location, time of occurrence, weapon involvement, and case status.
 
 Each row in the dataset represents **one reported crime incident**.
 
